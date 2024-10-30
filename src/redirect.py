@@ -1,5 +1,6 @@
 import asyncio
 import json
+import threading
 from dataclasses import dataclass
 
 from mitmproxy import http, options
@@ -10,7 +11,7 @@ from mitmproxy.tools.dump import DumpMaster
 class ChangeDofusConfig:
     dump_master: DumpMaster
 
-    def response(self, flow: http.HTTPFlow):
+    async def response(self, flow: http.HTTPFlow):
         if (
             (
                 flow.request.pretty_url
@@ -25,11 +26,9 @@ class ChangeDofusConfig:
 
 
 async def start_proxy_dofus_config(with_logs: bool = False):
-    # Configuration de mitmproxy
     opts = options.Options(listen_host="127.0.0.1", listen_port=8080)
     dump_master = DumpMaster(opts, with_termlog=with_logs, with_dumper=with_logs)
 
-    # Ajouter l'addon
     addon = ChangeDofusConfig(dump_master)
     dump_master.addons.add(addon)
 
@@ -39,7 +38,16 @@ async def start_proxy_dofus_config(with_logs: bool = False):
         dump_master.shutdown()
 
 
-if __name__ == "__main__":
-    asyncio.run(start_proxy_dofus_config(True))
+def run_proxy_config_in_thread(with_logs: bool = False):
+    thread = threading.Thread(
+        target=lambda: asyncio.run(start_proxy_dofus_config(with_logs)), daemon=True
+    )
+    thread.start()
+    return thread
+
 
 # Dont forget to add proxy to redirect to localhost 8080
+
+if __name__ == "__main__":
+    thread = run_proxy_config_in_thread(True)
+    thread.join()
